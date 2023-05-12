@@ -24,14 +24,13 @@ data:
       # The following ones are for query-frontend.
       # https://thanos.io/tip/proposals-accepted/202205-vertical-query-sharding.md/
       # https://grafana.com/docs/mimir/latest/operators-guide/architecture/query-sharding/
-      # Adjust max query parallelism to 16x sharding, without sharding we can run 15d queries fully in parallel.
-      # With sharding we can further shard each day another 16 times. 15 days * 16 shards = 240 subqueries.
-      max_query_parallelism: 100
+      # Run this number of sharded/split queries in parallel from one original query 
+      max_query_parallelism: 4
       # The max number of sharded queries that can be run for a given received query. 0 to disable limit.
-      query_sharding_max_sharded_queries: 20
+      query_sharding_max_sharded_queries: 1
       # Each shardable portion of a query is split into query-sharding-total-shards partial queries.
       # https://github.com/metrics-hacker/mimir-db/blob/9f6f130f19f1f55e30857bb1c4b14daf85f90c8d/pkg/frontend/querymiddleware/querysharding.go#L273-L274
-      query_sharding_total_shards: 20
+      query_sharding_total_shards: 1
     tenant_federation:
       enabled: true
     activity_tracker:
@@ -104,6 +103,7 @@ data:
       sharding_ring:
         wait_stability_min_duration: 1m
       symbols_flushers_concurrency: 4
+    # This is query-frontend
     frontend:
       split_queries_by_interval: 8h
       cache_results: true

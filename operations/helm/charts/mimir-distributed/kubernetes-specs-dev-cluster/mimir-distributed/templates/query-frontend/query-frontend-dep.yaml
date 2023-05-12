@@ -57,6 +57,7 @@ spec:
             - "-target=query-frontend"
             - "-config.expand-env=true"
             - "-config.file=/etc/mimir/mimir.yaml"
+            - "-log.level=debug"
           volumeMounts:
             - name: runtime-config
               mountPath: /var/mimir
