@@ -31,6 +31,8 @@ data:
       # Each shardable portion of a query is split into query-sharding-total-shards partial queries.
       # https://github.com/metrics-hacker/mimir-db/blob/9f6f130f19f1f55e30857bb1c4b14daf85f90c8d/pkg/frontend/querymiddleware/querysharding.go#L273-L274
       query_sharding_total_shards: 1
+      # An instance query can be split by its interval in e.g. "[1h]"
+      split_instant_queries_by_interval: 2h
     tenant_federation:
       enabled: true
     activity_tracker:
