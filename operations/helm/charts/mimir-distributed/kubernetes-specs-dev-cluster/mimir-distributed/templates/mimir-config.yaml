@@ -13,14 +13,23 @@ metadata:
   namespace: "mimir"
 data:
   mimir.yaml: | 
-    query_frontend:
+    limits:
+      max_cache_freshness: 10m
+      max_total_query_length: 12000h
+      out_of_order_time_window: 5m
+      max_label_names_per_series: 90
+      cardinality_analysis_enabled: true
+      max_global_series_per_user: 300000
+      # Adjust max query parallelism to 16x sharding, without sharding we can run 15d queries fully in parallel.
+      # With sharding we can further shard each day another 16 times. 15 days * 16 shards = 240 subqueries.
+      max_query_parallelism: 100
+      # The max number of sharded queries that can be run for a given received query. 0 to disable limit.
+      query_sharding_max_sharded_queries: 10
       # The amount of shards to use when doing parallelisation via query sharding by tenant.
       # 0 to disable query sharding for tenant. Query sharding implementation will adjust the number of query shards based on compactor shards.
       # This allows querier to not search the blocks which cannot possibly have the series for given query shard.",
       # NB: disable it because we have a big number of tenants (~300).
       query_sharding_total_shards: 0
-      # The max number of sharded queries that can be run for a given received query. 0 to disable limit.
-      query_sharding_max_sharded_queries: 20
     tenant_federation:
       enabled: true
     activity_tracker:
@@ -143,18 +152,6 @@ data:
       enabled: true
     license:
       path: /license/license.jwt
-    limits:
-      max_cache_freshness: 10m
-      max_query_parallelism: 240
-      max_total_query_length: 12000h
-      out_of_order_time_window: 5m
-      max_label_names_per_series: 90
-      cardinality_analysis_enabled: true
-      max_global_series_per_user: 300000
-      query_sharding_max_sharded_queries: 32
-      # Adjust max query parallelism to 16x sharding, without sharding we can run 15d queries fully in parallel.
-      # With sharding we can further shard each day another 16 times. 15 days * 16 shards = 240 subqueries.
-      max_query_parallelism: 720
     memberlist:
       abort_if_cluster_join_fails: false
       compression_enabled: false
