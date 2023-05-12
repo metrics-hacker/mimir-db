@@ -22,14 +22,22 @@ data:
       max_global_series_per_user: 300000
 
       # The following ones are for query-frontend.
+      # There are 3 orthogonal ways to break down an instant/range query recursively.
+      #   1. Split a range query by time range.
+           # - Relevant flags: frontend.split_queries_by_interval
+      #   2. Split a query part of an instance/range query by its interval like "[8h]".
+           # - Relevant flags: limits.split_instant_queries_by_interval
+      #   3. Shard a query part of an instance/range query by its labels.
+           # - Relevant flags: query_sharding_total_shards
       # https://thanos.io/tip/proposals-accepted/202205-vertical-query-sharding.md/
       # https://grafana.com/docs/mimir/latest/operators-guide/architecture/query-sharding/
       # Run this number of sharded/split queries in parallel from one original query 
-      max_query_parallelism: 4
+      max_query_parallelism: 8
       # The max number of sharded queries that can be run for a given received query. 0 to disable limit.
-      query_sharding_max_sharded_queries: 1
+      query_sharding_max_sharded_queries: 8
       # Each shardable portion of a query is split into query-sharding-total-shards partial queries.
       # https://github.com/metrics-hacker/mimir-db/blob/9f6f130f19f1f55e30857bb1c4b14daf85f90c8d/pkg/frontend/querymiddleware/querysharding.go#L273-L274
+      # 1 means effectively disabling. Query sharding actually hurts query throughput in our setup.
       query_sharding_total_shards: 1
       # An instance query can be split by its interval in e.g. "[1h]"
       split_instant_queries_by_interval: 2h
@@ -107,10 +115,10 @@ data:
       symbols_flushers_concurrency: 4
     # This is query-frontend
     frontend:
-      split_queries_by_interval: 8h
-      cache_results: true
+      split_queries_by_interval: 4h
       parallelize_shardable_queries: true
       scheduler_worker_concurrency: 5
+      cache_results: true
       results_cache:
         backend: memcached
         memcached:
