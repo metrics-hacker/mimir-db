@@ -88,7 +88,7 @@ spec:
             initialDelaySeconds: 45
           resources:
             requests:
-              cpu: 100m
+              cpu: 300m
               memory: 128Mi
           securityContext:
             allowPrivilegeEscalation: false
