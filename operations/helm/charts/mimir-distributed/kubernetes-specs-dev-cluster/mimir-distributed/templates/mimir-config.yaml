@@ -24,12 +24,10 @@ data:
       # With sharding we can further shard each day another 16 times. 15 days * 16 shards = 240 subqueries.
       max_query_parallelism: 100
       # The max number of sharded queries that can be run for a given received query. 0 to disable limit.
-      query_sharding_max_sharded_queries: 10
-      # The amount of shards to use when doing parallelisation via query sharding by tenant.
-      # 0 to disable query sharding for tenant. Query sharding implementation will adjust the number of query shards based on compactor shards.
-      # This allows querier to not search the blocks which cannot possibly have the series for given query shard.",
-      # NB: disable it because we have a big number of tenants (~300).
-      query_sharding_total_shards: 0
+      query_sharding_max_sharded_queries: 20
+      # Each shardable portion of a query is split into query-sharding-total-shards partial queries.
+      # https://github.com/metrics-hacker/mimir-db/blob/9f6f130f19f1f55e30857bb1c4b14daf85f90c8d/pkg/frontend/querymiddleware/querysharding.go#L273-L274
+      query_sharding_total_shards: 20
     tenant_federation:
       enabled: true
     activity_tracker:
@@ -103,8 +101,10 @@ data:
         wait_stability_min_duration: 1m
       symbols_flushers_concurrency: 4
     frontend:
+      split_queries_by_interval: 8h
       cache_results: true
       parallelize_shardable_queries: true
+      scheduler_worker_concurrency: 5
       results_cache:
         backend: memcached
         memcached:
@@ -161,7 +161,13 @@ data:
       # With query sharding we run more but smaller queries. We must strike a balance
       # which allows us to process more sharded queries in parallel when requested, but not overload
       # queriers during non-sharded queries.
-      max_concurrent: 32
+      # The number of workers running in each querier process. This setting limits
+      #   the maximum number of concurrent queries in each querier.
+      max_concurrent: 40
+      # Maximum number of samples a single query can load into memory. This config option should be set on query-frontend too when query sharding is enabled.",
+      max_samples: 100000000
+      # Querier timeout must be lower than or equal to HTTP server write timeout.
+      timeout: 3m
     query_scheduler:
       max_outstanding_requests_per_tenant: 8000
     ruler:
@@ -175,6 +181,7 @@ data:
       grpc_server_max_connection_age: 2m
       grpc_server_max_connection_age_grace: 5m
       grpc_server_max_connection_idle: 1m
+      http_server_write_timeout: 4m
     store_gateway:
       sharding_ring:
         tokens_file_path: /data/tokens
