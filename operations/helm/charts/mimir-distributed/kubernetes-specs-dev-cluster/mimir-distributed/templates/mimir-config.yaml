@@ -13,6 +13,34 @@ metadata:
   namespace: "mimir"
 data:
   mimir.yaml: | 
+    limits:
+      max_cache_freshness: 10m
+      max_total_query_length: 12000h
+      out_of_order_time_window: 5m
+      max_label_names_per_series: 90
+      cardinality_analysis_enabled: true
+      max_global_series_per_user: 300000
+
+      # The following ones are for query-frontend.
+      # There are 3 orthogonal ways to break down an instant/range query recursively.
+      #   1. Split a range query by time range.
+           # - Relevant flags: frontend.split_queries_by_interval
+      #   2. Split a query part of an instance/range query by its interval like "[8h]".
+           # - Relevant flags: limits.split_instant_queries_by_interval
+      #   3. Shard a query part of an instance/range query by its labels.
+           # - Relevant flags: query_sharding_total_shards
+      # https://thanos.io/tip/proposals-accepted/202205-vertical-query-sharding.md/
+      # https://grafana.com/docs/mimir/latest/operators-guide/architecture/query-sharding/
+      # Run this number of sharded/split queries in parallel from one original query 
+      max_query_parallelism: 8
+      # The max number of sharded queries that can be run for a given received query. 0 to disable limit.
+      query_sharding_max_sharded_queries: 8
+      # Each shardable portion of a query is split into query-sharding-total-shards partial queries.
+      # https://github.com/metrics-hacker/mimir-db/blob/9f6f130f19f1f55e30857bb1c4b14daf85f90c8d/pkg/frontend/querymiddleware/querysharding.go#L273-L274
+      # 1 means effectively disabling. Query sharding actually hurts query throughput in our setup.
+      query_sharding_total_shards: 1
+      # An instance query can be split by its interval in e.g. "[1h]"
+      split_instant_queries_by_interval: 2h
     tenant_federation:
       enabled: true
     activity_tracker:
@@ -85,9 +113,12 @@ data:
       sharding_ring:
         wait_stability_min_duration: 1m
       symbols_flushers_concurrency: 4
+    # This is query-frontend
     frontend:
-      cache_results: true
+      split_queries_by_interval: 4h
       parallelize_shardable_queries: true
+      scheduler_worker_concurrency: 5
+      cache_results: true
       results_cache:
         backend: memcached
         memcached:
@@ -135,24 +166,24 @@ data:
       enabled: true
     license:
       path: /license/license.jwt
-    limits:
-      max_cache_freshness: 10m
-      max_query_parallelism: 240
-      max_total_query_length: 12000h
-      out_of_order_time_window: 5m
-      max_label_names_per_series: 90
-      cardinality_analysis_enabled: true
-      max_global_series_per_user: 300000
-      query_sharding_max_sharded_queries: 32
     memberlist:
       abort_if_cluster_join_fails: false
       compression_enabled: false
       join_members:
       - dns+databricks-gem-mimir-gossip-ring.mimir.svc.cluster.local:7946
     querier:
-      max_concurrent: 16
+      # With query sharding we run more but smaller queries. We must strike a balance
+      # which allows us to process more sharded queries in parallel when requested, but not overload
+      # queriers during non-sharded queries.
+      # The number of workers running in each querier process. This setting limits
+      #   the maximum number of concurrent queries in each querier.
+      max_concurrent: 40
+      # Maximum number of samples a single query can load into memory. This config option should be set on query-frontend too when query sharding is enabled.",
+      max_samples: 100000000
+      # Querier timeout must be lower than or equal to HTTP server write timeout.
+      timeout: 3m
     query_scheduler:
-      max_outstanding_requests_per_tenant: 800
+      max_outstanding_requests_per_tenant: 8000
     ruler:
       alertmanager_url: dnssrvnoa+http://_http-metrics._tcp.databricks-gem-mimir-alertmanager-headless.mimir.svc.cluster.local/alertmanager
       enable_api: true
@@ -164,6 +195,7 @@ data:
       grpc_server_max_connection_age: 2m
       grpc_server_max_connection_age_grace: 5m
       grpc_server_max_connection_idle: 1m
+      http_server_write_timeout: 4m
     store_gateway:
       sharding_ring:
         tokens_file_path: /data/tokens
