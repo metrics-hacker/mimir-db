@@ -58,6 +58,7 @@ spec:
             - "-config.expand-env=true"
             - "-config.file=/etc/mimir/mimir.yaml"
             - "-log.level=debug"
+            - "-query-frontend.log-queries-longer-than=1m"
           volumeMounts:
             - name: runtime-config
               mountPath: /var/mimir
