@@ -49,6 +49,7 @@ const (
 	HATrackerMaxClustersFlag               = "distributor.ha-tracker.max-clusters"
 	resultsCacheTTLFlag                    = "query-frontend.results-cache-ttl"
 	resultsCacheTTLForOutOfOrderWindowFlag = "query-frontend.results-cache-ttl-for-out-of-order-time-window"
+	QueryIngestersWithinFlag               = "querier.query-ingesters-within"
 
 	// MinCompactorPartialBlockDeletionDelay is the minimum partial blocks deletion delay that can be configured in Mimir.
 	MinCompactorPartialBlockDeletionDelay = 4 * time.Hour
@@ -60,14 +61,6 @@ type LimitError string
 func (e LimitError) Error() string {
 	return string(e)
 }
-
-type ForwardingRule struct {
-	// Ingest defines whether a metric should still be pushed to the Ingesters despite it being forwarded.
-	Ingest bool `yaml:"ingest" json:"ingest"`
-}
-
-// ForwardingRules are keyed by metric names, excluding labels.
-type ForwardingRules map[string]ForwardingRule
 
 // Limits describe all the limits for users; can be used to describe global default
 // limits via flags, or per-user limits via yaml config.
@@ -126,6 +119,7 @@ type Limits struct {
 	QueryShardingMaxShardedQueries  int            `yaml:"query_sharding_max_sharded_queries" json:"query_sharding_max_sharded_queries"`
 	QueryShardingMaxRegexpSizeBytes int            `yaml:"query_sharding_max_regexp_size_bytes" json:"query_sharding_max_regexp_size_bytes" category:"experimental"`
 	SplitInstantQueriesByInterval   model.Duration `yaml:"split_instant_queries_by_interval" json:"split_instant_queries_by_interval" category:"experimental"`
+	QueryIngestersWithin            model.Duration `yaml:"query_ingesters_within" json:"query_ingesters_within" category:"advanced"`
 
 	// Query-frontend limits.
 	MaxTotalQueryLength                    model.Duration `yaml:"max_total_query_length" json:"max_total_query_length"`
@@ -180,10 +174,6 @@ type Limits struct {
 	AlertmanagerMaxAlertsCount                 int `yaml:"alertmanager_max_alerts_count" json:"alertmanager_max_alerts_count"`
 	AlertmanagerMaxAlertsSizeBytes             int `yaml:"alertmanager_max_alerts_size_bytes" json:"alertmanager_max_alerts_size_bytes"`
 
-	ForwardingEndpoint      string          `yaml:"forwarding_endpoint" json:"forwarding_endpoint" doc:"nocli|description=Remote-write endpoint where metrics specified in forwarding_rules are forwarded to. If set, takes precedence over endpoints specified in forwarding rules."`
-	ForwardingDropOlderThan model.Duration  `yaml:"forwarding_drop_older_than" json:"forwarding_drop_older_than" doc:"nocli|description=If set, forwarding drops samples that are older than this duration. If unset or 0, no samples get dropped."`
-	ForwardingRules         ForwardingRules `yaml:"forwarding_rules" json:"forwarding_rules" doc:"nocli|description=Rules based on which the Distributor decides whether a metric should be forwarded to an alternative remote_write API endpoint."`
-
 	extensions map[string]interface{}
 }
 
@@ -237,8 +227,10 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&l.MaxQueriersPerTenant, "query-frontend.max-queriers-per-tenant", 0, "Maximum number of queriers that can handle requests for a single tenant. If set to 0 or value higher than number of available queriers, *all* queriers will handle requests for the tenant. Each frontend (or query-scheduler, if used) will select the same set of queriers for the same tenant (given that all queriers are connected to all frontends / query-schedulers). This option only works with queriers connecting to the query-frontend / query-scheduler, not when using downstream URL.")
 	f.IntVar(&l.QueryShardingTotalShards, "query-frontend.query-sharding-total-shards", 16, "The amount of shards to use when doing parallelisation via query sharding by tenant. 0 to disable query sharding for tenant. Query sharding implementation will adjust the number of query shards based on compactor shards. This allows querier to not search the blocks which cannot possibly have the series for given query shard.")
 	f.IntVar(&l.QueryShardingMaxShardedQueries, "query-frontend.query-sharding-max-sharded-queries", 128, "The max number of sharded queries that can be run for a given received query. 0 to disable limit.")
-	f.IntVar(&l.QueryShardingMaxRegexpSizeBytes, "query-frontend.query-sharding-max-regexp-size-bytes", 0, "Disable query sharding for any query containing a regular expression matcher longer than the configured number of bytes. 0 to disable the limit.")
+	f.IntVar(&l.QueryShardingMaxRegexpSizeBytes, "query-frontend.query-sharding-max-regexp-size-bytes", 4096, "Disable query sharding for any query containing a regular expression matcher longer than the configured number of bytes. 0 to disable the limit.")
 	f.Var(&l.SplitInstantQueriesByInterval, "query-frontend.split-instant-queries-by-interval", "Split instant queries by an interval and execute in parallel. 0 to disable it.")
+	_ = l.QueryIngestersWithin.Set("13h")
+	f.Var(&l.QueryIngestersWithin, QueryIngestersWithinFlag, "Maximum lookback beyond which queries are not sent to ingester. 0 means all queries are sent to ingester.")
 
 	_ = l.RulerEvaluationDelay.Set("1m")
 	f.Var(&l.RulerEvaluationDelay, "ruler.evaluation-delay-duration", "Duration to delay the evaluation of rules to ensure the underlying metrics have been pushed.")
@@ -252,6 +244,7 @@ func (l *Limits) RegisterFlags(f *flag.FlagSet) {
 	f.IntVar(&l.CompactorSplitAndMergeShards, "compactor.split-and-merge-shards", 0, "The number of shards to use when splitting blocks. 0 to disable splitting.")
 	f.IntVar(&l.CompactorSplitGroups, "compactor.split-groups", 1, "Number of groups that blocks for splitting should be grouped into. Each group of blocks is then split separately. Number of output split shards is controlled by -compactor.split-and-merge-shards.")
 	f.IntVar(&l.CompactorTenantShardSize, "compactor.compactor-tenant-shard-size", 0, "Max number of compactors that can compact blocks for single tenant. 0 to disable the limit and use all compactors.")
+	_ = l.CompactorPartialBlockDeletionDelay.Set("1d")
 	f.Var(&l.CompactorPartialBlockDeletionDelay, "compactor.partial-block-deletion-delay", fmt.Sprintf("If a partial block (unfinished block without %s file) hasn't been modified for this time, it will be marked for deletion. The minimum accepted value is %s: a lower value will be ignored and the feature disabled. 0 to disable.", block.MetaFilename, MinCompactorPartialBlockDeletionDelay.String()))
 	f.BoolVar(&l.CompactorBlockUploadEnabled, "compactor.block-upload-enabled", false, "Enable block upload API for the tenant.")
 	f.BoolVar(&l.CompactorBlockUploadValidationEnabled, "compactor.block-upload-validation-enabled", true, "Enable block upload validation for the tenant.")
@@ -567,6 +560,12 @@ func (o *Overrides) SplitInstantQueriesByInterval(userID string) time.Duration {
 	return time.Duration(o.getOverridesForUser(userID).SplitInstantQueriesByInterval)
 }
 
+// QueryIngestersWithin returns the maximum lookback beyond which queries are not sent to ingester.
+// 0 means all queries are sent to ingester.
+func (o *Overrides) QueryIngestersWithin(userID string) time.Duration {
+	return time.Duration(o.getOverridesForUser(userID).QueryIngestersWithin)
+}
+
 // EnforceMetadataMetricName whether to enforce the presence of a metric name on metadata.
 func (o *Overrides) EnforceMetadataMetricName(userID string) bool {
 	return o.getOverridesForUser(userID).EnforceMetadataMetricName
@@ -812,18 +811,6 @@ func (o *Overrides) AlertmanagerMaxAlertsCount(userID string) int {
 
 func (o *Overrides) AlertmanagerMaxAlertsSizeBytes(userID string) int {
 	return o.getOverridesForUser(userID).AlertmanagerMaxAlertsSizeBytes
-}
-
-func (o *Overrides) ForwardingRules(user string) ForwardingRules {
-	return o.getOverridesForUser(user).ForwardingRules
-}
-
-func (o *Overrides) ForwardingEndpoint(user string) string {
-	return o.getOverridesForUser(user).ForwardingEndpoint
-}
-
-func (o *Overrides) ForwardingDropOlderThan(user string) time.Duration {
-	return time.Duration(o.getOverridesForUser(user).ForwardingDropOlderThan)
 }
 
 func (o *Overrides) ResultsCacheTTL(user string) time.Duration {

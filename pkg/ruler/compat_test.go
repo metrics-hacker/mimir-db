@@ -368,7 +368,7 @@ func TestRecordAndReportRuleQueryMetrics(t *testing.T) {
 func TestManagerFactory_CorrectQueryableUsed(t *testing.T) {
 	const userID = "tenant-1"
 
-	dummyRules := []*rulespb.RuleDesc{mockRecordingRuleDesc("sum:up", "sum(up)")}
+	dummyRules := []*rulespb.RuleDesc{createRecordingRule("sum:up", "sum(up)")}
 
 	testCases := map[string]struct {
 		ruleGroup rulespb.RuleGroupDesc
@@ -438,7 +438,7 @@ func TestManagerFactory_CorrectQueryableUsed(t *testing.T) {
 			manager := managerFactory(context.Background(), userID, notifierManager, options.logger, nil)
 
 			// load rules into manager and start
-			require.NoError(t, manager.Update(time.Millisecond, ruleFiles, nil, "", nil))
+			require.NoError(t, manager.Update(time.Millisecond, ruleFiles, labels.EmptyLabels(), "", nil))
 			go manager.Run()
 
 			select {

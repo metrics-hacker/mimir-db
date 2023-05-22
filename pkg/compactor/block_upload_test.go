@@ -767,12 +767,38 @@ func TestMultitenantCompactor_UploadBlockFile(t *testing.T) {
 		},
 	}
 
+	setupFnForValidRequest := func(bkt *bucket.ClientMock) {
+		bkt.MockExists(metaPath, false, nil)
+
+		b, err := json.Marshal(validMeta)
+		setUpGet(bkt, path.Join(tenantID, blockID, uploadingMetaFilename), b, err)
+		setUpGet(bkt, path.Join(tenantID, blockID, validationFilename), nil, bucket.ErrObjectDoesNotExist)
+
+		bkt.MockUpload(path.Join(tenantID, blockID, "chunks/000001"), nil)
+	}
+
+	verifyFuncForValidRequest := func(t *testing.T, bkt *bucket.ClientMock, expContent string) {
+		var call mock.Call
+		for _, c := range bkt.Calls {
+			if c.Method == "Upload" {
+				call = c
+				break
+			}
+		}
+
+		rdr := call.Arguments[2].(io.Reader)
+		got, err := io.ReadAll(rdr)
+		require.NoError(t, err)
+		assert.Equal(t, []byte(expContent), got)
+	}
+
 	testCases := []struct {
 		name                   string
 		tenantID               string
 		blockID                string
 		path                   string
 		body                   string
+		unknownContentLength   bool
 		disableBlockUpload     bool
 		expBadRequest          string
 		expConflict            string
@@ -938,34 +964,23 @@ func TestMultitenantCompactor_UploadBlockFile(t *testing.T) {
 			expBadRequest: "unexpected file",
 		},
 		{
-			name:     "valid request",
-			tenantID: tenantID,
-			blockID:  blockID,
-			path:     "chunks/000001",
-			body:     chunkBodyContent,
-			setUpBucketMock: func(bkt *bucket.ClientMock) {
-				bkt.MockExists(metaPath, false, nil)
-
-				b, err := json.Marshal(validMeta)
-				setUpGet(bkt, path.Join(tenantID, blockID, uploadingMetaFilename), b, err)
-				setUpGet(bkt, path.Join(tenantID, blockID, validationFilename), nil, bucket.ErrObjectDoesNotExist)
-
-				bkt.MockUpload(path.Join(tenantID, blockID, "chunks/000001"), nil)
-			},
-			verifyUpload: func(t *testing.T, bkt *bucket.ClientMock, expContent string) {
-				var call mock.Call
-				for _, c := range bkt.Calls {
-					if c.Method == "Upload" {
-						call = c
-						break
-					}
-				}
-
-				rdr := call.Arguments[2].(io.Reader)
-				got, err := io.ReadAll(rdr)
-				require.NoError(t, err)
-				assert.Equal(t, []byte(expContent), got)
-			},
+			name:            "valid request",
+			tenantID:        tenantID,
+			blockID:         blockID,
+			path:            "chunks/000001",
+			body:            chunkBodyContent,
+			setUpBucketMock: setupFnForValidRequest,
+			verifyUpload:    verifyFuncForValidRequest,
+		},
+		{
+			name:                 "valid request, with unknown content-length",
+			tenantID:             tenantID,
+			blockID:              blockID,
+			path:                 "chunks/000001",
+			body:                 chunkBodyContent,
+			unknownContentLength: true,
+			setUpBucketMock:      setupFnForValidRequest,
+			verifyUpload:         verifyFuncForValidRequest,
 		},
 	}
 	for _, tc := range testCases {
@@ -995,6 +1010,9 @@ func TestMultitenantCompactor_UploadBlockFile(t *testing.T) {
 			}
 			if tc.body != "" {
 				r.ContentLength = int64(len(tc.body))
+				if tc.unknownContentLength {
+					r.ContentLength = -1
+				}
 			}
 			w := httptest.NewRecorder()
 			c.UploadBlockFile(w, r)
@@ -1563,12 +1581,14 @@ func TestMultitenantCompactor_ValidateBlock(t *testing.T) {
 		{
 			name: "out of order labels",
 			lbls: func() []labels.Labels {
+				b := labels.NewScratchBuilder(2)
+				b.Add("d", "4")
+				b.Add("a", "1")
 				oooLabels := []labels.Labels{
-					labels.FromStrings("a", "1", "d", "4"),
+					b.Labels(), // Haven't called Sort(), so they will be out of order.
 					labels.FromStrings("b", "2"),
 					labels.FromStrings("c", "3"),
 				}
-				oooLabels[0].Swap(0, 1)
 				return oooLabels
 			},
 			expectError: true,
@@ -1611,7 +1631,7 @@ func TestMultitenantCompactor_ValidateBlock(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// create a test block
 			now := time.Now()
-			blockID, err := testhelper.CreateBlock(ctx, tmpDir, tc.lbls(), 300, now.Add(-2*time.Hour).UnixMilli(), now.UnixMilli(), nil)
+			blockID, err := testhelper.CreateBlock(ctx, tmpDir, tc.lbls(), 300, now.Add(-2*time.Hour).UnixMilli(), now.UnixMilli(), labels.EmptyLabels())
 			require.NoError(t, err)
 			testDir := filepath.Join(tmpDir, blockID.String())
 			meta, err := metadata.ReadFromDir(testDir)

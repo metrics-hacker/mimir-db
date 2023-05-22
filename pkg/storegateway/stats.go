@@ -36,8 +36,8 @@ type queryStats struct {
 	seriesOmitted          int
 	seriesFetched          int
 	seriesFetchedSizeSum   int
-	seriesFetchCount       int
 	seriesFetchDurationSum time.Duration
+	seriesRefetches        int
 
 	seriesHashCacheRequests int
 	seriesHashCacheHits     int
@@ -75,6 +75,7 @@ type queryStats struct {
 	streamingSeriesEncodeResponseDuration       time.Duration
 	streamingSeriesSendResponseDuration         time.Duration
 	streamingSeriesOtherDuration                time.Duration
+	streamingSeriesIndexLoadDuration            time.Duration
 }
 
 func (s queryStats) merge(o *queryStats) *queryStats {
@@ -102,8 +103,8 @@ func (s queryStats) merge(o *queryStats) *queryStats {
 	s.seriesOmitted += o.seriesOmitted
 	s.seriesFetched += o.seriesFetched
 	s.seriesFetchedSizeSum += o.seriesFetchedSizeSum
-	s.seriesFetchCount += o.seriesFetchCount
 	s.seriesFetchDurationSum += o.seriesFetchDurationSum
+	s.seriesRefetches += o.seriesRefetches
 
 	s.seriesHashCacheRequests += o.seriesHashCacheRequests
 	s.seriesHashCacheHits += o.seriesHashCacheHits
@@ -131,6 +132,8 @@ func (s queryStats) merge(o *queryStats) *queryStats {
 	s.streamingSeriesEncodeResponseDuration += o.streamingSeriesEncodeResponseDuration
 	s.streamingSeriesSendResponseDuration += o.streamingSeriesSendResponseDuration
 	s.streamingSeriesOtherDuration += o.streamingSeriesOtherDuration
+
+	s.streamingSeriesIndexLoadDuration += o.streamingSeriesIndexLoadDuration
 
 	return &s
 }
