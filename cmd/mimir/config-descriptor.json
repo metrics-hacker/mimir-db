@@ -1496,7 +1496,7 @@
           "fieldDefaultValue": false,
           "fieldFlag": "querier.iterators",
           "fieldType": "boolean",
-          "fieldCategory": "advanced"
+          "fieldCategory": "deprecated"
         },
         {
           "kind": "field",
@@ -1507,7 +1507,7 @@
           "fieldDefaultValue": true,
           "fieldFlag": "querier.batch-iterators",
           "fieldType": "boolean",
-          "fieldCategory": "advanced"
+          "fieldCategory": "deprecated"
         },
         {
           "kind": "field",
@@ -1639,6 +1639,28 @@
           "fieldFlag": "querier.shuffle-sharding-ingesters-enabled",
           "fieldType": "boolean",
           "fieldCategory": "advanced"
+        },
+        {
+          "kind": "field",
+          "name": "prefer_streaming_chunks",
+          "required": false,
+          "desc": "Request ingesters stream chunks. Ingesters will only respond with a stream of chunks if the target ingester supports this, and this preference will be ignored by ingesters that do not support this.",
+          "fieldValue": null,
+          "fieldDefaultValue": false,
+          "fieldFlag": "querier.prefer-streaming-chunks",
+          "fieldType": "boolean",
+          "fieldCategory": "experimental"
+        },
+        {
+          "kind": "field",
+          "name": "streaming_chunks_per_ingester_series_buffer_size",
+          "required": false,
+          "desc": "Number of series to buffer per ingester when streaming chunks from ingesters.",
+          "fieldValue": null,
+          "fieldDefaultValue": 512,
+          "fieldFlag": "querier.streaming-chunks-per-ingester-buffer-size",
+          "fieldType": "int",
+          "fieldCategory": "experimental"
         },
         {
           "kind": "field",
@@ -2429,17 +2451,6 @@
               "fieldFlag": "ingester.ring.final-sleep",
               "fieldType": "duration",
               "fieldCategory": "advanced"
-            },
-            {
-              "kind": "field",
-              "name": "readiness_check_ring_health",
-              "required": false,
-              "desc": "When enabled the readiness probe succeeds only after all instances are ACTIVE and healthy in the ring, otherwise only the instance itself is checked. This option should be disabled if in your cluster multiple instances can be rolled out simultaneously, otherwise rolling updates may be slowed down.",
-              "fieldValue": null,
-              "fieldDefaultValue": false,
-              "fieldFlag": "ingester.ring.readiness-check-ring-health",
-              "fieldType": "boolean",
-              "fieldCategory": "deprecated"
             }
           ],
           "fieldValue": null,
@@ -2611,23 +2622,21 @@
           "kind": "field",
           "name": "request_rate",
           "required": false,
-          "desc": "Per-tenant request rate limit in requests per second. 0 to disable.",
+          "desc": "Per-tenant push request rate limit in requests per second. 0 to disable.",
           "fieldValue": null,
           "fieldDefaultValue": 0,
           "fieldFlag": "distributor.request-rate-limit",
-          "fieldType": "float",
-          "fieldCategory": "experimental"
+          "fieldType": "float"
         },
         {
           "kind": "field",
           "name": "request_burst_size",
           "required": false,
-          "desc": "Per-tenant allowed request burst size. 0 to disable.",
+          "desc": "Per-tenant allowed push request burst size. 0 to disable.",
           "fieldValue": null,
           "fieldDefaultValue": 0,
           "fieldFlag": "distributor.request-burst-size",
-          "fieldType": "int",
-          "fieldCategory": "experimental"
+          "fieldType": "int"
         },
         {
           "kind": "field",
@@ -2776,7 +2785,7 @@
           "kind": "field",
           "name": "ingestion_tenant_shard_size",
           "required": false,
-          "desc": "The tenant's shard size used by shuffle-sharding. Must be set both on ingesters and distributors. 0 disables shuffle sharding.",
+          "desc": "The tenant's shard size used by shuffle-sharding. This value is the total size of the shard (ie. it is not the number of ingesters in the shard per zone, but the number of ingesters in the shard across all zones, if zone-awareness is enabled). Must be set both on ingesters and distributors. 0 disables shuffle sharding.",
           "fieldValue": null,
           "fieldDefaultValue": 0,
           "fieldFlag": "distributor.ingestion-tenant-shard-size",
@@ -3017,8 +3026,7 @@
           "fieldValue": null,
           "fieldDefaultValue": 4096,
           "fieldFlag": "query-frontend.query-sharding-max-regexp-size-bytes",
-          "fieldType": "int",
-          "fieldCategory": "experimental"
+          "fieldType": "int"
         },
         {
           "kind": "field",
@@ -3176,6 +3184,17 @@
           "fieldFlag": "ruler.alerting-rules-evaluation-enabled",
           "fieldType": "boolean",
           "fieldCategory": "experimental"
+        },
+        {
+          "kind": "field",
+          "name": "ruler_sync_rules_on_changes_enabled",
+          "required": false,
+          "desc": "True to enable a re-sync of the configured rule groups as soon as they're changed via ruler's config API. This re-sync is in addition of the periodic syncing. When enabled, it may take up to few tens of seconds before a configuration change triggers the re-sync.",
+          "fieldValue": null,
+          "fieldDefaultValue": true,
+          "fieldFlag": "ruler.sync-rules-on-changes-enabled",
+          "fieldType": "boolean",
+          "fieldCategory": "advanced"
         },
         {
           "kind": "field",
@@ -4598,8 +4617,7 @@
           "fieldValue": null,
           "fieldDefaultValue": 0,
           "fieldFlag": "query-frontend.query-sharding-target-series-per-shard",
-          "fieldType": "int",
-          "fieldCategory": "experimental"
+          "fieldType": "int"
         },
         {
           "kind": "field",
@@ -5196,8 +5214,7 @@
           "fieldValue": null,
           "fieldDefaultValue": "",
           "fieldFlag": "blocks-storage.storage-prefix",
-          "fieldType": "string",
-          "fieldCategory": "experimental"
+          "fieldType": "string"
         },
         {
           "kind": "block",
@@ -5269,17 +5286,6 @@
               "fieldFlag": "blocks-storage.bucket-store.meta-sync-concurrency",
               "fieldType": "int",
               "fieldCategory": "advanced"
-            },
-            {
-              "kind": "field",
-              "name": "consistency_delay",
-              "required": false,
-              "desc": "Minimum age of a block before it's being read. Set it to safe value (e.g 30m) if your object storage is eventually consistent. GCS and S3 are (roughly) strongly consistent.",
-              "fieldValue": null,
-              "fieldDefaultValue": 0,
-              "fieldFlag": "blocks-storage.bucket-store.consistency-delay",
-              "fieldType": "duration",
-              "fieldCategory": "deprecated"
             },
             {
               "kind": "block",
@@ -7020,7 +7026,8 @@
                   "fieldValue": null,
                   "fieldDefaultValue": true,
                   "fieldFlag": "blocks-storage.bucket-store.bucket-index.enabled",
-                  "fieldType": "boolean"
+                  "fieldType": "boolean",
+                  "fieldCategory": "deprecated"
                 },
                 {
                   "kind": "field",
@@ -7168,11 +7175,22 @@
                   "kind": "field",
                   "name": "max_idle_file_handles",
                   "required": false,
-                  "desc": "Maximum number of idle file handles the store-gateway keeps open for each index-header file.",
+                  "desc": "Maximum number of idle file handles the store-gateway keeps open for each index header file.",
                   "fieldValue": null,
                   "fieldDefaultValue": 1,
                   "fieldFlag": "blocks-storage.bucket-store.index-header.max-idle-file-handles",
                   "fieldType": "int",
+                  "fieldCategory": "advanced"
+                },
+                {
+                  "kind": "field",
+                  "name": "verify_on_load",
+                  "required": false,
+                  "desc": "If true, verify the checksum of index headers upon loading them (either on startup or lazily when lazy loading is enabled). Setting to true helps detect disk corruption at the cost of slowing down index header loading.",
+                  "fieldValue": null,
+                  "fieldDefaultValue": false,
+                  "fieldFlag": "blocks-storage.bucket-store.index-header.verify-on-load",
+                  "fieldType": "boolean",
                   "fieldCategory": "advanced"
                 }
               ],
@@ -7207,10 +7225,31 @@
               "required": false,
               "desc": "This option controls the strategy to selection of series and deferring application of matchers. A more aggressive strategy will fetch less posting lists at the cost of more series. This is useful when querying large blocks in which many series share the same label name and value. Supported values (most aggressive to least aggressive): speculative, worst-case, worst-case-small-posting-lists, all.",
               "fieldValue": null,
-              "fieldDefaultValue": "all",
+              "fieldDefaultValue": "worst-case",
               "fieldFlag": "blocks-storage.bucket-store.series-selection-strategy",
               "fieldType": "string",
               "fieldCategory": "experimental"
+            },
+            {
+              "kind": "block",
+              "name": "series_selection_strategies",
+              "required": false,
+              "desc": "",
+              "blockEntries": [
+                {
+                  "kind": "field",
+                  "name": "worst_case_series_preference",
+                  "required": false,
+                  "desc": "This option is only used when blocks-storage.bucket-store.series-selection-strategy=worst-case. Increasing the series preference results in fetching more series than postings. Must be a positive floating point number.",
+                  "fieldValue": null,
+                  "fieldDefaultValue": 0.75,
+                  "fieldFlag": "blocks-storage.bucket-store.series-selection-strategies.worst-case-series-preference",
+                  "fieldType": "float",
+                  "fieldCategory": "experimental"
+                }
+              ],
+              "fieldValue": null,
+              "fieldDefaultValue": null
             }
           ],
           "fieldValue": null,
@@ -7555,17 +7594,6 @@
         },
         {
           "kind": "field",
-          "name": "consistency_delay",
-          "required": false,
-          "desc": "Minimum age of fresh (non-compacted) blocks before they are being processed.",
-          "fieldValue": null,
-          "fieldDefaultValue": 0,
-          "fieldFlag": "compactor.consistency-delay",
-          "fieldType": "duration",
-          "fieldCategory": "deprecated"
-        },
-        {
-          "kind": "field",
           "name": "data_dir",
           "required": false,
           "desc": "Directory to temporarily store blocks during compaction. This directory is not required to be persisted between restarts.",
@@ -7613,10 +7641,9 @@
           "required": false,
           "desc": "How long the compactor waits before compacting first-level blocks that are uploaded by the ingesters. This configuration option allows for the reduction of cases where the compactor begins to compact blocks before all ingesters have uploaded their blocks to the storage.",
           "fieldValue": null,
-          "fieldDefaultValue": 0,
+          "fieldDefaultValue": 1500000000000,
           "fieldFlag": "compactor.first-level-compaction-wait-period",
-          "fieldType": "duration",
-          "fieldCategory": "experimental"
+          "fieldType": "duration"
         },
         {
           "kind": "field",
@@ -9027,9 +9054,9 @@
           "kind": "field",
           "name": "poll_interval",
           "required": false,
-          "desc": "How frequently to poll for rule changes",
+          "desc": "How frequently the configured rule groups are re-synced from the object storage.",
           "fieldValue": null,
-          "fieldDefaultValue": 60000000000,
+          "fieldDefaultValue": 600000000000,
           "fieldFlag": "ruler.poll-interval",
           "fieldType": "duration",
           "fieldCategory": "advanced"
@@ -10530,8 +10557,7 @@
           "fieldValue": null,
           "fieldDefaultValue": "",
           "fieldFlag": "ruler-storage.storage-prefix",
-          "fieldType": "string",
-          "fieldCategory": "experimental"
+          "fieldType": "string"
         },
         {
           "kind": "block",
@@ -12431,8 +12457,7 @@
           "fieldValue": null,
           "fieldDefaultValue": "",
           "fieldFlag": "alertmanager-storage.storage-prefix",
-          "fieldType": "string",
-          "fieldCategory": "experimental"
+          "fieldType": "string"
         },
         {
           "kind": "block",
@@ -13538,8 +13563,7 @@
           "fieldValue": null,
           "fieldDefaultValue": 0,
           "fieldFlag": "query-scheduler.max-used-instances",
-          "fieldType": "int",
-          "fieldCategory": "experimental"
+          "fieldType": "int"
         }
       ],
       "fieldValue": null,
@@ -13559,8 +13583,7 @@
           "fieldValue": null,
           "fieldDefaultValue": true,
           "fieldFlag": "usage-stats.enabled",
-          "fieldType": "boolean",
-          "fieldCategory": "experimental"
+          "fieldType": "boolean"
         },
         {
           "kind": "field",
@@ -13570,8 +13593,7 @@
           "fieldValue": null,
           "fieldDefaultValue": "custom",
           "fieldFlag": "usage-stats.installation-mode",
-          "fieldType": "string",
-          "fieldCategory": "experimental"
+          "fieldType": "string"
         }
       ],
       "fieldValue": null,
